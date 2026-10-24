@@ -12,7 +12,11 @@ h1{font-size:18px;margin:0}header small{color:var(--dim)}button,select,input{bac
 .node.route circle{stroke:#a4d1ff;stroke-width:2.5;filter:drop-shadow(0 0 7px #559df5)}
 .links line.route{stroke:#8ec7ff;stroke-width:3.1;stroke-opacity:1;stroke-dasharray:none;filter:drop-shadow(0 0 4px #4d8ef2)}
 .node.path-muted{opacity:.27}
-.links line.path-muted{stroke-opacity:.055}
+.links line.path-muted{stroke-opacity:.045}
+.links line.next-option{stroke:#f3c77b;stroke-width:2.4;stroke-opacity:.94;stroke-dasharray:4 6;filter:drop-shadow(0 0 3px #d39c47)}
+.node.next-option{opacity:1}
+.node.next-option circle{stroke:#f3c77b;stroke-width:2.8;filter:drop-shadow(0 0 8px #c18d43)}
+.node.next-option text{fill:#ffe2ad;font-weight:700}
 
 aside{position:absolute;right:18px;top:92px;bottom:18px;width:335px;max-width:calc(100vw - 36px);overflow:auto;background:#171e26f5;border:1px solid #526072;border-radius:13px;padding:20px;display:none;z-index:3;box-shadow:0 12px 30px #0009}
 aside h2{margin:10px 0;font-size:22px}aside p{color:var(--dim)}aside button{width:100%;text-align:left;margin:3px 0}
@@ -24,7 +28,7 @@ aside h2{margin:10px 0;font-size:22px}aside p{color:var(--dim)}aside button{widt
 <header><div><h1>Micro-Journey Explorer</h1><small>A fictional documentation graph · Explore connected tasks, sections and five user intents</small></div><div class="controls"><input id="search" placeholder="Search tasks or sections" aria-label="Search" size="19"><select id="intent" aria-label="Filter by intent"><option value="all">All intents</option><option value="understand">Understand</option><option value="do">Do</option><option value="verify">Verify</option><option value="troubleshoot">Troubleshoot</option><option value="learn-more">Learn more</option></select><button id="path-toggle" aria-pressed="true">Highlight path: On</button><button id="panel-toggle" aria-pressed="false">Panel: Off</button><button id="clear-trail">Clear path</button><button id="reset">Reset view</button></div></header>
 <svg id="graph" role="img" aria-label="Force-directed knowledge graph of macro journeys, micro journeys and task sections"></svg>
 <aside id="panel"><button id="close" style="width:auto;float:right">Close ×</button><div id="detail"></div></aside>
-<div class="help"><b style="color:#d7e4f4">Explore the knowledge graph</b><div>Click nodes to inspect. Drag to rearrange. Scroll to zoom. Filter by user intent to reveal where it is supported.</div><div style="margin-top:7px">● <span style="color:#e1ae66">Journey</span> · <span style="color:#83b7ff">Macro</span> · <span style="color:#9be2c4">Pages</span> · Sections in gray</div></div>
+<div class="help"><b style="color:#d7e4f4">Explore the knowledge graph</b><div>Click a node: blue shows your route; dotted gold lines show connected next choices. Click any connected node to continue.</div><div style="margin-top:7px">● <span style="color:#e1ae66">Journey</span> · <span style="color:#83b7ff">Macro</span> · <span style="color:#9be2c4">Pages</span> · Sections in gray</div></div>
 <script>
 const intents=['understand','do','verify','troubleshoot','learn-more'];
 const labels={'understand':'Understand','do':'Do','verify':'Verify','troubleshoot':'Troubleshoot','learn-more':'Learn more'};
@@ -195,11 +199,17 @@ function render(){const intent=document.getElementById('intent').value,query=doc
 for(const n of nodes.filter(n=>n.kind==='section'&&(intent==='all'||Object.hasOwn(n.coverage,intent))&&(!query||n.label.toLowerCase().includes(query)||by[n.parent]?.label.toLowerCase().includes(query))))lineage(n).forEach(v=>seen.add(v));
 if(!query&&intent==='all')nodes.forEach(n=>seen.add(n.id));
 const route=pathOn&&trail.length?routeSet():new Set();
-point.classed('faint',d=>!seen.has(d.id)).classed('selected',d=>current?.id===d.id)
- .classed('route',d=>route.has(d.id)).classed('path-muted',d=>route.size>0&&!route.has(d.id));
+const options=new Set();
+if(current)for(const e of links){if(e.source.id===current.id)options.add(e.target.id);if(e.target.id===current.id)options.add(e.source.id)}
+options.delete(current?.id);
+const isTrailEdge=d=>route.size>0&&((d.type!=='cross'&&route.has(d.source.id)&&route.has(d.target.id))||visitedEdge(d.source.id,d.target.id));
+const isNextEdge=d=>!!current&&(d.source.id===current.id&&options.has(d.target.id)||d.target.id===current.id&&options.has(d.source.id))&&!isTrailEdge(d);
+point.classed('faint',d=>!seen.has(d.id)&&!options.has(d.id)).classed('selected',d=>current?.id===d.id)
+ .classed('route',d=>route.has(d.id)).classed('next-option',d=>options.has(d.id)&&!route.has(d.id))
+ .classed('path-muted',d=>route.size>0&&!route.has(d.id)&&!options.has(d.id));
 edges.classed('faint',d=>!seen.has(d.source.id)||!seen.has(d.target.id))
- .classed('route',d=>route.size>0&&((d.type!=='cross'&&route.has(d.source.id)&&route.has(d.target.id))||visitedEdge(d.source.id,d.target.id)))
- .classed('path-muted',d=>route.size>0&&!((d.type!=='cross'&&route.has(d.source.id)&&route.has(d.target.id))||visitedEdge(d.source.id,d.target.id)));
+ .classed('route',isTrailEdge).classed('next-option',isNextEdge)
+ .classed('path-muted',d=>route.size>0&&!isTrailEdge(d)&&!isNextEdge(d));
 }
 function openNode(d){current=d;if(trail.at(-1)!==d.id)trail.push(d.id);const child=nodes.filter(n=>n.parent===d.id);let out='<div style="font-size:11px;letter-spacing:.1em;color:#a3c6fc;text-transform:uppercase">'+d.kind+'</div><h2>'+d.label+'</h2><p>'+d.description+'</p>';if(d.kind==='section'){out+='<b>Five user intents · illustrative coverage</b>';for(const i of intents){out+='<div class="cover"><strong>'+labels[i]+'</strong><div>'+(d.coverage[i]||'Not mapped for this example')+'</div></div>'}}else{out+='<b>Contains</b>';for(const n of child)out+='<button data-id="'+n.id+'">'+n.label+'</button>';if(d.kind==='page'){const sec=child.filter(n=>n.kind==='section');out+='<p>Intents inherited from '+sec.length+' sections: '+intents.filter(i=>sec.some(s=>s.coverage[i])).map(i=>'<span class="tag">'+labels[i]+'</span>').join('')+'</p>'}}out+='<p style="font-size:11px">This is a fictional demonstration, not verified product documentation or user-test evidence.</p>';document.getElementById('detail').innerHTML=out;syncPanel();document.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>openNode(by[b.dataset.id]));render();}
 point.on('click',(e,d)=>{e.stopPropagation();openNode(d)});svg.on('click',()=>{document.getElementById('panel').style.display='none'});document.getElementById('close').onclick=()=>setPanel(false);document.getElementById('clear-trail').onclick=()=>{trail=[];current=null;syncPanel();render()};document.getElementById('intent').onchange=render;document.getElementById('search').oninput=render;document.getElementById('reset').onclick=()=>{document.getElementById('intent').value='all';document.getElementById('search').value='';current=null;trail=[];syncPanel();render();reset()};
