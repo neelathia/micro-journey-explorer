@@ -24,7 +24,8 @@ aside h2{margin:10px 0;font-size:22px}aside p{color:var(--dim)}aside button{widt
 .cover{border-top:1px solid #374554;padding:9px 0}.cover strong{color:#9ec3ff}.cover div{font-size:12px;color:var(--dim)}
 .help{position:absolute;left:14px;bottom:14px;max-width:420px;background:#192129ed;border:1px solid #384755;padding:12px;border-radius:10px;font-size:12px;color:var(--dim)}
 @media(max-width:720px){header{padding:9px}header h1{font-size:14px}header small{font-size:10px}.controls{gap:4px}.controls>*{font-size:11px;padding:6px}svg{top:112px;height:calc(100% - 112px)}aside{top:123px}.help{max-width:245px}}
-</style></head><body>
+</style><script data-goatcounter="https://neelathia.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+</head><body>
 <header><div><h1>Micro-Journey Explorer</h1><small>A fictional documentation graph · Explore connected tasks, sections and five user intents</small></div><div class="controls"><input id="search" placeholder="Search tasks or sections" aria-label="Search" size="19"><select id="intent" aria-label="Filter by intent"><option value="all">All intents</option><option value="understand">Understand</option><option value="do">Do</option><option value="verify">Verify</option><option value="troubleshoot">Troubleshoot</option><option value="learn-more">Learn more</option></select><button id="path-toggle" aria-pressed="true">Highlight path: On</button><button id="panel-toggle" aria-pressed="false">Panel: Off</button><button id="clear-trail">Clear path</button><button id="reset">Reset view</button></div></header>
 <svg id="graph" role="img" aria-label="Force-directed knowledge graph of macro journeys, micro journeys and task sections"></svg>
 <aside id="panel"><button id="close" style="width:auto;float:right">Close ×</button><div id="detail"></div></aside>
