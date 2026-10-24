@@ -186,6 +186,16 @@ const sim=d3.forceSimulation(nodes)
 .velocityDecay(.4);
 point.call(d3.drag().on('start',(e,d)=>{if(!e.active)sim.alphaTarget(.25).restart();d.fx=d.x;d.fy=d.y}).on('drag',(e,d)=>{d.fx=e.x;d.fy=e.y}).on('end',(e,d)=>{if(!e.active)sim.alphaTarget(0);d.fx=null;d.fy=null}));
 sim.on('tick',()=>{edges.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y).attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);point.attr('transform',d=>'translate('+d.x+','+d.y+')')});
+
+// Anonymous, aggregate events only. Inactive until a GoatCounter site code is installed.
+function trackGraph(action,detail){
+ const gc=window.goatcounter;
+ if(!gc||typeof gc.count!=='function')return;
+ const allowed=['intent','node','clear-path','reset'];
+ if(!allowed.includes(action))return;
+ const value=String(detail||'').replace(/[^a-z0-9-]/g,'').slice(0,32);
+ gc.count({path:'graph-'+action+(value?'-'+value:''),title:'Graph '+action+(value?' '+value:''),event:true});
+}
 let current=null,pathOn=true,panelOn=false,trail=[];
 function lineage(d){const a=[d.id];let x=d;while(x.parent&&by[x.parent]){x=by[x.parent];a.push(x.id)}return a}
 function routeSet(){return new Set(trail.flatMap(id=>by[id]?lineage(by[id]):[]))}
@@ -211,7 +221,7 @@ edges.classed('faint',d=>!seen.has(d.source.id)||!seen.has(d.target.id))
  .classed('route',isTrailEdge).classed('next-option',isNextEdge)
  .classed('path-muted',d=>route.size>0&&!isTrailEdge(d)&&!isNextEdge(d));
 }
-function openNode(d){current=d;if(trail.at(-1)!==d.id)trail.push(d.id);const child=nodes.filter(n=>n.parent===d.id);let out='<div style="font-size:11px;letter-spacing:.1em;color:#a3c6fc;text-transform:uppercase">'+d.kind+'</div><h2>'+d.label+'</h2><p>'+d.description+'</p>';if(d.kind==='section'){out+='<b>Five user intents · illustrative coverage</b>';for(const i of intents){out+='<div class="cover"><strong>'+labels[i]+'</strong><div>'+(d.coverage[i]||'Not mapped for this example')+'</div></div>'}}else{out+='<b>Contains</b>';for(const n of child)out+='<button data-id="'+n.id+'">'+n.label+'</button>';if(d.kind==='page'){const sec=child.filter(n=>n.kind==='section');out+='<p>Intents inherited from '+sec.length+' sections: '+intents.filter(i=>sec.some(s=>s.coverage[i])).map(i=>'<span class="tag">'+labels[i]+'</span>').join('')+'</p>'}}out+='<p style="font-size:11px">This is a fictional demonstration, not verified product documentation or user-test evidence.</p>';document.getElementById('detail').innerHTML=out;syncPanel();document.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>openNode(by[b.dataset.id]));render();}
-point.on('click',(e,d)=>{e.stopPropagation();openNode(d)});svg.on('click',()=>{document.getElementById('panel').style.display='none'});document.getElementById('close').onclick=()=>setPanel(false);document.getElementById('clear-trail').onclick=()=>{trail=[];current=null;syncPanel();render()};document.getElementById('intent').onchange=render;document.getElementById('search').oninput=render;document.getElementById('reset').onclick=()=>{document.getElementById('intent').value='all';document.getElementById('search').value='';current=null;trail=[];syncPanel();render();reset()};
+function openNode(d){trackGraph('node',d.kind);current=d;if(trail.at(-1)!==d.id)trail.push(d.id);const child=nodes.filter(n=>n.parent===d.id);let out='<div style="font-size:11px;letter-spacing:.1em;color:#a3c6fc;text-transform:uppercase">'+d.kind+'</div><h2>'+d.label+'</h2><p>'+d.description+'</p>';if(d.kind==='section'){out+='<b>Five user intents · illustrative coverage</b>';for(const i of intents){out+='<div class="cover"><strong>'+labels[i]+'</strong><div>'+(d.coverage[i]||'Not mapped for this example')+'</div></div>'}}else{out+='<b>Contains</b>';for(const n of child)out+='<button data-id="'+n.id+'">'+n.label+'</button>';if(d.kind==='page'){const sec=child.filter(n=>n.kind==='section');out+='<p>Intents inherited from '+sec.length+' sections: '+intents.filter(i=>sec.some(s=>s.coverage[i])).map(i=>'<span class="tag">'+labels[i]+'</span>').join('')+'</p>'}}out+='<p style="font-size:11px">This is a fictional demonstration, not verified product documentation or user-test evidence.</p>';document.getElementById('detail').innerHTML=out;syncPanel();document.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>openNode(by[b.dataset.id]));render();}
+point.on('click',(e,d)=>{e.stopPropagation();openNode(d)});svg.on('click',()=>{document.getElementById('panel').style.display='none'});document.getElementById('close').onclick=()=>setPanel(false);document.getElementById('clear-trail').onclick=()=>{trackGraph('clear-path');trail=[];current=null;syncPanel();render()};document.getElementById('intent').onchange=()=>{trackGraph('intent',document.getElementById('intent').value);render()};document.getElementById('search').oninput=render;document.getElementById('reset').onclick=()=>{trackGraph('reset');document.getElementById('intent').value='all';document.getElementById('search').value='';current=null;trail=[];syncPanel();render();reset()};
 render();setTimeout(fit,1800);
 </script></body></html>
