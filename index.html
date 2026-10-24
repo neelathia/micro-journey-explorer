@@ -159,23 +159,22 @@ point.append('circle').attr('r',d=>radii[d.kind]).attr('fill',d=>colors[d.kind])
 point.append('text').attr('dy',d=>radii[d.kind]+15).text(d=>d.label);
 point.append('title').text(d=>d.label);
 const zoom=d3.zoom().scaleExtent([.2,4]).on('zoom',e=>world.attr('transform',e.transform));svg.call(zoom);
-const w=()=>innerWidth,h=()=>innerHeight-80;const reset=()=>svg.transition().duration(400).call(zoom.transform,d3.zoomIdentity.translate(w()*.48,h()*.48).scale(.8));reset();
-// Preserve the hierarchy as spatial clusters. Cross-references are drawn but do not pull clusters apart.
-const groupOf=d=>{let x=d;while(x.parent&&by[x.parent]){if(x.parent==='root')return x.id;x=by[x.parent]}return d.id};
-const centers={prepare:{x:-480,y:20},use:{x:360,y:-180},validate:{x:370,y:320}};
-const pageCenters={};const macros=nodes.filter(n=>n.kind==='macro');
-for(const macro of macros){const pages=nodes.filter(n=>n.kind==='page'&&groupOf(n)===macro.id);pages.forEach((n,i)=>{const a=2*Math.PI*i/pages.length-Math.PI/2;const c=centers[macro.id];pageCenters[n.id]={x:c.x+Math.cos(a)*240,y:c.y+Math.sin(a)*205};});}
-function targetOf(d){if(d.kind==='root')return {x:0,y:15};if(d.kind==='macro')return centers[d.id]||{x:0,y:0};if(d.kind==='page')return pageCenters[d.id]||centers[groupOf(d)]||{x:0,y:0};if(d.kind==='section'){let x=d;while(x&&x.kind!=='page')x=by[x.parent];return pageCenters[x?.id]||centers[groupOf(d)]||{x:0,y:0}}return centers[groupOf(d)]||{x:0,y:0};}
-// Resolve cross-link endpoints for drawing without letting them influence the force layout.
-links.filter(l=>l.type==='cross').forEach(l=>{l.source=by[l.source];l.target=by[l.target]});
+const w=()=>innerWidth,h=()=>innerHeight-80;function fit(){const b=world.node().getBBox();if(!b.width||!b.height)return;const scale=Math.max(.19,Math.min(1.1,.83/Math.max(b.width/w(),b.height/h())));svg.transition().duration(500).call(zoom.transform,d3.zoomIdentity.translate(w()/2,h()/2).scale(scale).translate(-(b.x+b.width/2),-(b.y+b.height/2)));}
+const reset=()=>fit();
+svg.call(zoom.transform,d3.zoomIdentity.translate(w()/2,h()/2).scale(.72));
+// Layout derived from the compact, hierarchy-led D3 reference supplied by the author.
+// Keep cross-links visible, but too weak to distort the parent-child clusters.
 const sim=d3.forceSimulation(nodes)
-.force('link',d3.forceLink(links.filter(l=>l.type!=='cross')).id(d=>d.id).distance(d=>d.target.kind==='section'?70:d.target.kind==='page'?110:185).strength(d=>d.target.kind==='section'?.82:.35))
-.force('charge',d3.forceManyBody().strength(d=>d.kind==='section'?-85:d.kind==='page'?-280:-470))
-.force('collision',d3.forceCollide(d=>radii[d.kind]+17).iterations(2))
-.force('x',d3.forceX(d=>targetOf(d).x).strength(d=>d.kind==='root'?.3:d.kind==='macro'?.92:d.kind==='page'?.55:.18))
-.force('y',d3.forceY(d=>targetOf(d).y).strength(d=>d.kind==='root'?.3:d.kind==='macro'?.92:d.kind==='page'?.55:.18))
-.alphaDecay(.023);
-
+.force('link',d3.forceLink(links).id(d=>d.id)
+ .distance(d=>d.type==='cross'?175:(d.target.kind==='section'?64:d.target.kind==='page'?127:166))
+ .strength(d=>d.type==='cross'?.009:d.target.kind==='section'?.70:.67))
+.force('charge',d3.forceManyBody().strength(d=>d.kind==='root'?-1850:d.kind==='macro'?-1100:d.kind==='stage'?-750:d.kind==='page'?-460:-64))
+.force('collision',d3.forceCollide(d=>radii[d.kind]+(d.kind==='section'?19:35)).iterations(2))
+.force('center',d3.forceCenter(0,0))
+.force('x',d3.forceX(0).strength(.022))
+.force('y',d3.forceY(0).strength(.022))
+.alphaDecay(.025)
+.velocityDecay(.4);
 point.call(d3.drag().on('start',(e,d)=>{if(!e.active)sim.alphaTarget(.25).restart();d.fx=d.x;d.fy=d.y}).on('drag',(e,d)=>{d.fx=e.x;d.fy=e.y}).on('end',(e,d)=>{if(!e.active)sim.alphaTarget(0);d.fx=null;d.fy=null}));
 sim.on('tick',()=>{edges.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y).attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);point.attr('transform',d=>'translate('+d.x+','+d.y+')')});
 let current=null;
@@ -188,5 +187,5 @@ edges.classed('faint',d=>!seen.has(d.source.id)||!seen.has(d.target.id));
 }
 function openNode(d){current=d;const child=nodes.filter(n=>n.parent===d.id);let out='<div style="font-size:11px;letter-spacing:.1em;color:#a3c6fc;text-transform:uppercase">'+d.kind+'</div><h2>'+d.label+'</h2><p>'+d.description+'</p>';if(d.kind==='section'){out+='<b>Five user intents · illustrative coverage</b>';for(const i of intents){out+='<div class="cover"><strong>'+labels[i]+'</strong><div>'+(d.coverage[i]||'Not mapped for this example')+'</div></div>'}}else{out+='<b>Contains</b>';for(const n of child)out+='<button data-id="'+n.id+'">'+n.label+'</button>';if(d.kind==='page'){const sec=child.filter(n=>n.kind==='section');out+='<p>Intents inherited from '+sec.length+' sections: '+intents.filter(i=>sec.some(s=>s.coverage[i])).map(i=>'<span class="tag">'+labels[i]+'</span>').join('')+'</p>'}}out+='<p style="font-size:11px">This is a fictional demonstration, not verified product documentation or user-test evidence.</p>';document.getElementById('detail').innerHTML=out;document.getElementById('panel').style.display='block';document.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>openNode(by[b.dataset.id]));render();}
 point.on('click',(e,d)=>{e.stopPropagation();openNode(d)});svg.on('click',()=>{current=null;document.getElementById('panel').style.display='none';render()});document.getElementById('close').onclick=()=>{current=null;document.getElementById('panel').style.display='none';render()};document.getElementById('intent').onchange=render;document.getElementById('search').oninput=render;document.getElementById('reset').onclick=()=>{document.getElementById('intent').value='all';document.getElementById('search').value='';current=null;document.getElementById('panel').style.display='none';render();reset()};
-render();
+render();setTimeout(fit,1800);
 </script></body></html>
